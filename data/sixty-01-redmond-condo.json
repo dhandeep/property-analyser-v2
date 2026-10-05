@@ -1,0 +1,47 @@
+{
+  "name": "Sixty-01 #644, 6001 244th St SW, Mountlake Terrace WA",
+  "type": "Condo",
+  "price": "520000",
+  "arv": "520000",
+  "closing": "10000",
+  "reno": "0",
+  "hoa_mo": "650",
+  "yr_built": "2000",
+  "sqft": "950",
+  "beds": "2",
+  "baths": "1",
+  "dp_pct": "20",
+  "ir_pct": "7.0",
+  "term": "30",
+  "rent_mo": "2400",
+  "other_mo": "0",
+  "vac_pct": "5",
+  "ptax": "5200",
+  "ins": "900",
+  "mgmt_pct": "8",
+  "rep_pct": "0.5",
+  "capex_pct": "0.25",
+  "landscape": "0",
+  "other_exp": "0",
+  "appx_pct": "3.5",
+  "hold": "5",
+  "sell_cost_pct": "6",
+  "rent_grow_pct": "3.0",
+  "exit_cap_pct": "5.0",
+  "_meta": {
+    "source": "Manual entry — research session 2026-09",
+    "confidence_low": ["appreciation_pct", "rent_growth_pct"],
+    "notes": {
+      "hoa_mo": "HOA $650/mo covers exterior, roof, water, common areas. Reduces CapEx risk significantly vs SFH.",
+      "ptax": "Estimated. Verify at Snohomish County assessor.",
+      "rep_pct": "Lower than SFH because HOA covers exterior — only interior repairs.",
+      "capex_pct": "0.25% — appliances and interior finishes only. HOA covers structural."
+    },
+    "red_flags": [
+      "HOA $650/mo is the single largest expense — check HOA financials for reserve fund adequacy",
+      "Check HOA for pending litigation or special assessments",
+      "Condo market softer than SFH in PNW — lower liquidity at exit",
+      "Cap rate at 0.67% — deeply cash-flow negative, pure appreciation play"
+    ]
+  }
+}

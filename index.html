@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>RE Analyzer — PNW</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0F1923;--surface:#161F2B;--surface2:#1C2736;--border:#263040;
+  --text:#E4ECF4;--muted:#6B7E94;--accent:#00C9A7;--red:#FF4757;--yellow:#FFB800;
+  --mono:'JetBrains Mono',monospace;--sans:'Inter',sans-serif;--r:4px;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.5}
+#root{display:flex;flex-direction:column;height:100vh}
+.app-header{padding:12px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px;background:var(--bg);flex-shrink:0}
+.logo{font-size:13px;font-weight:600;letter-spacing:.04em;color:var(--accent)}
+.logo-sub{font-size:11px;color:var(--muted)}
+.app-main{display:grid;grid-template-columns:340px 1fr;flex:1;overflow:hidden}
+.left-panel{border-right:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column;background:var(--surface)}
+.right-panel{overflow-y:auto;background:var(--bg)}
+
+/* Paste zone */
+.paste-zone{padding:14px 16px;border-bottom:1px solid var(--border);flex-shrink:0}
+.zone-label{font-size:10px;font-weight:600;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;margin-bottom:6px}
+.paste-area{width:100%;height:80px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-family:var(--mono);font-size:11px;padding:8px;resize:none;outline:none}
+.paste-area:focus{border-color:var(--accent)}
+.paste-area::placeholder{color:var(--muted)}
+.paste-actions{display:flex;gap:6px;margin-top:6px;align-items:center;flex-wrap:wrap}
+.btn{padding:5px 12px;border-radius:var(--r);border:1px solid transparent;cursor:pointer;font-size:12px;font-family:var(--sans);font-weight:500}
+.btn-primary{background:var(--accent);color:#000;border-color:var(--accent)}
+.btn-ghost{background:transparent;color:var(--muted);border-color:var(--border)}
+.status{font-size:11px;padding:3px 8px;border-radius:var(--r)}
+.status-ok{background:#00C9A720;color:var(--accent)}
+.status-err{background:#FF475720;color:var(--red)}
+
+/* Property tabs */
+.prop-tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0}
+.prop-tab{padding:7px 14px;font-size:12px;font-weight:500;cursor:pointer;color:var(--muted);border:none;border-bottom:2px solid transparent;background:transparent;white-space:nowrap;flex:1;transition:color .15s,border-color .15s}
+.prop-tab.active{color:var(--text)}
+
+/* Inputs */
+.inputs-body{flex:1;overflow-y:auto;padding-bottom:24px}
+.sec-head{padding:10px 16px 3px;font-size:10px;font-weight:600;color:var(--accent);letter-spacing:.08em;text-transform:uppercase;background:var(--surface);position:sticky;top:0;z-index:1}
+.field{display:grid;grid-template-columns:1fr 116px;align-items:center;padding:3px 16px;min-height:28px;gap:8px}
+.field:hover{background:var(--surface2)}
+.field-lbl{font-size:12px;color:var(--muted);cursor:default}
+.field-lbl.has-tip{text-decoration:underline dotted;text-decoration-color:#3a4d60}
+.field-inp{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:3px;color:var(--text);font-family:var(--mono);font-size:12px;padding:3px 6px;text-align:right;outline:none}
+.field-inp:focus{border-color:var(--accent)}
+.field-inp.auto{background:transparent;border-color:transparent;color:var(--muted);pointer-events:none}
+.field-inp[type=number]{-moz-appearance:textfield}
+.field-inp[type=number]::-webkit-inner-spin-button{display:none}
+
+/* Scenario bar */
+.scenario-bar{padding:12px 24px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);flex-shrink:0}
+.scen-lbl{font-size:11px;color:var(--muted)}
+.scen-btn{padding:3px 12px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:11px;cursor:pointer;font-family:var(--sans)}
+.scen-btn.active{background:var(--accent);color:#000;border-color:var(--accent)}
+.scen-desc{font-size:10px;color:var(--muted);margin-left:auto}
+
+/* Result tabs */
+.res-tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0}
+.res-tab{padding:10px 20px;font-size:12px;font-weight:500;cursor:pointer;color:var(--muted);border:none;border-bottom:2px solid transparent;background:transparent}
+.res-tab.active{color:var(--text);border-bottom-color:var(--accent)}
+.res-body{padding:20px 24px}
+
+/* Metrics grid */
+.metrics-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:1px;background:var(--border);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:20px}
+.metric{background:var(--surface);padding:14px 16px}
+.m-lbl{font-size:11px;color:var(--muted);margin-bottom:5px}
+.m-val{font-family:var(--mono);font-size:22px;font-weight:600;line-height:1}
+.m-val.pos{color:var(--accent)}
+.m-val.neg{color:var(--red)}
+.m-val.warn{color:var(--yellow)}
+.m-sub{font-size:10px;color:var(--muted);margin-top:4px}
+
+/* Exit grid */
+.section-title{font-size:10px;font-weight:600;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px}
+.exit-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:20px}
+.exit-cell{background:var(--surface);padding:12px 16px}
+.e-lbl{font-size:11px;color:var(--muted);margin-bottom:3px}
+.e-val{font-family:var(--mono);font-size:16px;font-weight:600}
+
+/* Chart */
+.chart-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:20px}
+.chart-lbl{font-size:10px;color:var(--muted);margin-bottom:12px}
+
+/* Pro forma table */
+.pf-scroll{overflow-x:auto;margin-bottom:20px}
+.pf-table{min-width:680px;width:100%;border-collapse:collapse;font-size:11px}
+.pf-table th{padding:5px 10px;text-align:right;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border);font-weight:500;white-space:nowrap}
+.pf-table th:first-child{text-align:left}
+.pf-table td{padding:4px 10px;text-align:right;border-bottom:1px solid var(--border);font-family:var(--mono);color:var(--muted);white-space:nowrap}
+.pf-table td:first-child{text-align:left;font-family:var(--sans);color:var(--text)}
+.pf-table tr.sec td{background:var(--surface2);font-family:var(--sans);font-size:10px;font-weight:600;color:var(--accent);letter-spacing:.05em;text-transform:uppercase;padding:7px 10px 3px}
+.pf-table tr.hl td{color:var(--text)}
+.pf-table .pos{color:var(--accent)!important}
+.pf-table .neg{color:var(--red)!important}
+
+/* Compare table */
+.cmp-table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:20px}
+.cmp-table th{text-align:left;padding:6px 12px;font-size:10px;font-weight:600;color:var(--muted);letter-spacing:.04em;border-bottom:1px solid var(--border)}
+.cmp-table th:not(:first-child){text-align:right}
+.cmp-table td{padding:5px 12px;border-bottom:1px solid var(--border);font-family:var(--mono)}
+.cmp-table td:first-child{font-family:var(--sans);color:var(--muted);font-size:11px}
+.cmp-table td:not(:first-child){text-align:right}
+.cmp-table tr:hover td{background:var(--surface2)}
+.cmp-table tr.sec td{background:var(--surface2);font-family:var(--sans);font-size:10px;font-weight:600;color:var(--accent);letter-spacing:.05em;text-transform:uppercase;padding:8px 12px 4px}
+.cmp-table .best{color:var(--accent);font-weight:600}
+.cmp-table .worst{color:var(--red)}
+
+/* Empty */
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 24px;text-align:center;gap:8px}
+.empty-icon{font-size:36px;opacity:.25}
+.empty-text{font-size:13px;color:var(--muted)}
+.empty-sub{font-size:11px;color:var(--muted);opacity:.6}
+
+/* Tooltip */
+[data-tip]{position:relative}
+[data-tip]:hover::after{content:attr(data-tip);position:absolute;left:0;top:calc(100% + 4px);background:#1C2736;border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:var(--r);font-size:10px;white-space:normal;width:220px;z-index:99;line-height:1.4;pointer-events:none}
+
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+::-webkit-scrollbar-track{background:transparent}
+
+@media(max-width:768px){
+  .app-main{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+  .left-panel{border-right:none;border-bottom:1px solid var(--border);max-height:45vh}
+  .exit-grid,.metrics-grid{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useMemo, useRef } = React;
+
+// ─── MATH ────────────────────────────────────────────────────────────────────
+function pmt(rate, nper, pv) {
+  if (!rate || !nper) return 0;
+  return (pv * rate * Math.pow(1+rate, nper)) / (Math.pow(1+rate, nper) - 1);
+}
+function loanBal(ir_pct, term, hold, mp) {
+  const rate = ir_pct/100/12, n = term*12, paid = Math.min(hold*12, n);
+  if (!rate) return mp*(n-paid);
+  if (paid >= n) return 0;
+  return mp*(1-Math.pow(1+rate,-(n-paid)))/rate;
+}
+function calc(p) {
+  const n = v => parseFloat(v)||0;
+  const price=n(p.price), dp_pct=n(p.dp_pct), ir=n(p.ir_pct),
+        term=n(p.term)||30, rent=n(p.rent_mo), other=n(p.other_mo),
+        vac=n(p.vac_pct), ptax=n(p.ptax), ins=n(p.ins),
+        hoa=n(p.hoa_mo), mgmt=n(p.mgmt_pct), rep=n(p.rep_pct),
+        cpx=n(p.capex_pct), land=n(p.landscape), oth=n(p.other_exp),
+        cls=n(p.closing), reno=n(p.reno), appx=n(p.appx_pct),
+        hold=n(p.hold)||5, sc=n(p.sell_cost_pct), rg=n(p.rent_grow_pct),
+        ec=n(p.exit_cap_pct), sqft=n(p.sqft);
+
+  if (!price) return null;
+
+  const dp      = price*(dp_pct/100);
+  const loan    = price-dp;
+  const mp      = pmt(ir/100/12, term*12, loan);
+  const ann_pmt = mp*12;
+  const tcash   = dp+cls+reno;
+  const gyr     = (rent+other)*12;
+  const vac_l   = gyr*(vac/100);
+  const egi     = gyr-vac_l;
+  const hoa_yr  = hoa*12;
+  const mgmt_c  = egi*(mgmt/100);
+  const rep_c   = price*(rep/100);
+  const cpx_c   = price*(cpx/100);
+  const toe     = ptax+ins+hoa_yr+mgmt_c+rep_c+cpx_c+land+oth;
+  const noi     = egi-toe;
+  const cf_yr   = noi-ann_pmt;
+  const cf_mo   = cf_yr/12;
+
+  // Build 10-yr proforma
+  const years = Array.from({length:10},(_,i)=>i+1).map(y=>{
+    const ry   = gyr*Math.pow(1+rg/100,y-1);
+    const ey   = ry*(1-vac/100);
+    const toey = -(ptax*Math.pow(1.02,y-1)) -(ins*Math.pow(1.02,y-1))
+               -(hoa_yr*Math.pow(1.02,y-1)) -(ey*(mgmt/100))
+               -(price*(rep/100)*Math.pow(1+appx/100,y-1))
+               -(price*(cpx/100)*Math.pow(1+appx/100,y-1))
+               -((land+oth)*Math.pow(1.02,y-1));
+    const noy  = ey+toey;
+    const cfy  = noy-ann_pmt;
+    const vy   = price*Math.pow(1+appx/100,y);
+    return {y, ry, ey, toey:Math.abs(toey), noy, cfy, cfmo:cfy/12,
+            coc:tcash?cfy/tcash:0, vy, capy:vy?noy/vy:0};
+  });
+  years.forEach((r,i)=>{ r.cum=years.slice(0,i+1).reduce((s,x)=>s+x.cfy,0); });
+
+  const cum_cf = years.slice(0,hold).reduce((s,r)=>s+r.cfy,0);
+  const noi_exit = noi*Math.pow(1+rg/100,hold);
+  const cap_exit = ec ? noi_exit/(ec/100) : 0;
+  const appx_exit= price*Math.pow(1+appx/100,hold);
+  const sale     = appx_exit;
+  const net_proc = sale*(1-sc/100);
+  const bal      = loanBal(ir,term,hold,mp);
+  const equity   = net_proc-bal;
+  const profit   = equity+cum_cf-tcash;
+  const ann_roi  = tcash>0 ? Math.pow(Math.max((tcash+profit)/tcash,0.0001),1/hold)-1 : 0;
+
+  return { dp, loan, mp, ann_pmt, tcash, gyr, vac_l, egi, hoa_yr, mgmt_c, rep_c, cpx_c,
+           toe, exp_r:egi?toe/egi:0, noi, cf_yr, cf_mo, ppsf:sqft?price/sqft:0,
+           cap:price?noi/price:0, coc:tcash?cf_yr/tcash:0,
+           grm:gyr?price/gyr:0, one_pct:price?rent/price:0,
+           dscr:ann_pmt?noi/ann_pmt:0, be:gyr?(toe+ann_pmt)/gyr:0,
+           noi_exit, cap_exit, appx_exit, sale, net_proc, bal, equity,
+           cum_cf, profit, ann_roi, years };
+}
+
+// ─── FORMAT ──────────────────────────────────────────────────────────────────
+const fd = v => v==null?'—':'$'+Math.round(v).toLocaleString();
+const fp = v => v==null?'—':(v*100).toFixed(2)+'%';
+const fx = v => v==null?'—':v.toFixed(2)+'×';
+const fcls = (v, thresholds, inverse=false) => {
+  if (v==null) return '';
+  if (inverse) v = -v;
+  if (v > (thresholds[0]??Infinity)) return 'pos';
+  if (v < (thresholds[1]??-Infinity)) return 'neg';
+  return 'warn';
+};
+
+// ─── DEFAULTS ────────────────────────────────────────────────────────────────
+const SCENARIOS = {
+  conservative:{appx_pct:'3.0',rent_grow_pct:'2.0',ir_pct:'7.5',vac_pct:'6',exit_cap_pct:'5.5'},
+  base:        {appx_pct:'4.0',rent_grow_pct:'3.0',ir_pct:'7.0',vac_pct:'5',exit_cap_pct:'5.0'},
+  optimistic:  {appx_pct:'5.5',rent_grow_pct:'4.5',ir_pct:'6.5',vac_pct:'4',exit_cap_pct:'4.5'},
+};
+const SEED = [
+  {name:'Bothell SFH',type:'SFH',price:'650000',arv:'650000',closing:'13000',reno:'0',
+   hoa_mo:'0',yr_built:'2005',sqft:'1800',beds:'3',baths:'2',
+   dp_pct:'20',ir_pct:'7.0',term:'30',rent_mo:'2800',other_mo:'0',vac_pct:'5',
+   ptax:'6500',ins:'1800',mgmt_pct:'8',rep_pct:'1.0',capex_pct:'0.5',landscape:'600',other_exp:'0',
+   appx_pct:'3.5',hold:'5',sell_cost_pct:'6',rent_grow_pct:'3',exit_cap_pct:'5'},
+  {name:'Sixty-01 Condo',type:'Condo',price:'520000',arv:'520000',closing:'10000',reno:'0',
+   hoa_mo:'650',yr_built:'2000',sqft:'950',beds:'2',baths:'1',
+   dp_pct:'20',ir_pct:'7.0',term:'30',rent_mo:'2400',other_mo:'0',vac_pct:'5',
+   ptax:'5200',ins:'900',mgmt_pct:'8',rep_pct:'0.5',capex_pct:'0.25',landscape:'0',other_exp:'0',
+   appx_pct:'3.5',hold:'5',sell_cost_pct:'6',rent_grow_pct:'3',exit_cap_pct:'5'},
+  {name:'Property C',type:'SFH',price:'',arv:'',closing:'',reno:'0',hoa_mo:'0',yr_built:'',sqft:'',beds:'',baths:'',
+   dp_pct:'20',ir_pct:'7.0',term:'30',rent_mo:'',other_mo:'0',vac_pct:'5',
+   ptax:'',ins:'',mgmt_pct:'8',rep_pct:'1.0',capex_pct:'0.5',landscape:'0',other_exp:'0',
+   appx_pct:'3.5',hold:'5',sell_cost_pct:'6',rent_grow_pct:'3',exit_cap_pct:'5'},
+  {name:'Property D',type:'SFH',price:'',arv:'',closing:'',reno:'0',hoa_mo:'0',yr_built:'',sqft:'',beds:'',baths:'',
+   dp_pct:'20',ir_pct:'7.0',term:'30',rent_mo:'',other_mo:'0',vac_pct:'5',
+   ptax:'',ins:'',mgmt_pct:'8',rep_pct:'1.0',capex_pct:'0.5',landscape:'0',other_exp:'0',
+   appx_pct:'3.5',hold:'5',sell_cost_pct:'6',rent_grow_pct:'3',exit_cap_pct:'5'},
+];
+const COLORS=['#00C9A7','#70AD47','#E7A320','#7030A0'];
+
+// ─── CHART ───────────────────────────────────────────────────────────────────
+function Chart({years}) {
+  if (!years?.length) return null;
+  const W=560,H=150,PL=52,PR=10,PT=8,PB=26;
+  const cfs=years.map(r=>r.cfy), cums=years.map(r=>r.cum);
+  const all=[...cfs,...cums];
+  const mn=Math.min(...all), mx=Math.max(...all), rng=mx-mn||1;
+  const xs=years.map((_,i)=>PL+(i/(years.length-1))*(W-PL-PR));
+  const yy=v=>PT+(1-(v-mn)/rng)*(H-PT-PB);
+  const zy=yy(0);
+  const pts=vs=>vs.map((v,i)=>`${xs[i]},${yy(v)}`).join(' ');
+  const ticks=[mn,0,mx].filter((v,i,a)=>a.indexOf(v)===i&&Math.abs(v)>rng*0.05);
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{width:'100%',height:H,display:'block'}}>
+      <line x1={PL} y1={zy} x2={W-PR} y2={zy} stroke="#263040" strokeWidth={1}/>
+      {[PT,H/2,H-PB].map(y=><line key={y} x1={PL} y1={y} x2={W-PR} y2={y} stroke="#1C2736" strokeWidth={1} strokeDasharray="3,3"/>)}
+      <polyline points={pts(cums)} fill="none" stroke="#4a5e72" strokeWidth={1.5} strokeDasharray="4,3"/>
+      <polyline points={pts(cfs)} fill="none" stroke="#00C9A7" strokeWidth={2}/>
+      {years.map((_,i)=><circle key={i} cx={xs[i]} cy={yy(cfs[i])} r={3} fill={cfs[i]>=0?'#00C9A7':'#FF4757'}/>)}
+      {ticks.map(v=><text key={v} x={PL-4} y={yy(v)+4} textAnchor="end" fontSize={9} fill="#6B7E94">${Math.round(v/1000)}k</text>)}
+      {years.map((_,i)=><text key={i} x={xs[i]} y={H-5} textAnchor="middle" fontSize={9} fill="#6B7E94">Y{i+1}</text>)}
+      <line x1={W-120} y1={10} x2={W-108} y2={10} stroke="#00C9A7" strokeWidth={2}/>
+      <text x={W-105} y={14} fontSize={9} fill="#6B7E94">Annual CF</text>
+      <line x1={W-120} y1={22} x2={W-108} y2={22} stroke="#4a5e72" strokeWidth={1.5} strokeDasharray="4,3"/>
+      <text x={W-105} y={26} fontSize={9} fill="#6B7E94">Cumulative</text>
+    </svg>
+  );
+}
+
+// ─── FIELD ───────────────────────────────────────────────────────────────────
+function Field({label, tip, value, onChange, auto, type='number', placeholder, step}) {
+  return (
+    <div className="field">
+      <span className={`field-lbl${tip?' has-tip':''}`} data-tip={tip||undefined}>{label}</span>
+      <input
+        className={`field-inp${auto?' auto':''}`}
+        type={auto ? 'text' : type}
+        value={auto ? (value??'—') : (value??'')}
+        onChange={auto ? undefined : e=>onChange(e.target.value)}
+        readOnly={auto}
+        placeholder={placeholder}
+        step={step}
+      />
+    </div>
+  );
+}
+
+// ─── INPUT PANEL ─────────────────────────────────────────────────────────────
+function InputPanel({prop:p, onChange}) {
+  const r = calc(p);
+  const s = k => v => onChange({...p,[k]:v});
+  const af = v => v!=null&&v!=='' ? fd(v) : '—';
+  const ap = v => v!=null&&v!=='' ? fp(v) : '—';
+  return (
+    <div className="inputs-body">
+      <div className="sec-head">A — Property</div>
+      <Field label="Name" type="text" value={p.name} onChange={s('name')} placeholder="123 Main St"/>
+      <Field label="Type" type="text" value={p.type} onChange={s('type')} placeholder="SFH / Condo / MFH"/>
+      <Field label="Purchase Price $" tip="Agreed or listed price" value={p.price} onChange={s('price')} placeholder="650000"/>
+      <Field label="Closing Costs $" tip="Typically ~2% of price in WA" value={p.closing} onChange={s('closing')} placeholder="13000"/>
+      <Field label="Renovation $" tip="One-time upfront; 0 if move-in ready" value={p.reno} onChange={s('reno')} placeholder="0"/>
+      <Field label="HOA Monthly $" tip="0 for SFH with no HOA" value={p.hoa_mo} onChange={s('hoa_mo')} placeholder="0"/>
+      <Field label="Year Built" value={p.yr_built} onChange={s('yr_built')} placeholder="2005"/>
+      <Field label="Sq Ft" value={p.sqft} onChange={s('sqft')} placeholder="1800"/>
+      <Field label="Beds" type="number" value={p.beds} onChange={s('beds')} placeholder="3"/>
+      <Field label="Baths" type="number" value={p.baths} onChange={s('baths')} placeholder="2" step="0.5"/>
+
+      <div className="sec-head">B — Financing</div>
+      <Field label="Down Payment %" tip="Enter 20 for 20%" value={p.dp_pct} onChange={s('dp_pct')} placeholder="20" step="0.5"/>
+      <Field label="↳ Down Payment $" auto value={r ? af(r.dp) : '—'}/>
+      <Field label="↳ Loan Amount $" auto value={r ? af(r.loan) : '—'}/>
+      <Field label="Interest Rate %" tip="Enter 7 for 7%. Investment property rate." value={p.ir_pct} onChange={s('ir_pct')} placeholder="7.0" step="0.125"/>
+      <Field label="Loan Term (yrs)" value={p.term} onChange={s('term')} placeholder="30"/>
+      <Field label="↳ Monthly P&I $" auto value={r ? af(r.mp) : '—'}/>
+      <Field label="↳ Annual P&I $" auto value={r ? af(r.ann_pmt) : '—'}/>
+      <Field label="Total Cash In $" tip="Down + Closing + Renovation" auto value={r ? af(r.tcash) : '—'}/>
+
+      <div className="sec-head">C — Income</div>
+      <Field label="Monthly Rent $" tip="Market rent today — haircut Zillow Zestimate 5-8%" value={p.rent_mo} onChange={s('rent_mo')} placeholder="2800"/>
+      <Field label="Other Income $/mo" tip="Parking, storage, laundry, pet fees" value={p.other_mo} onChange={s('other_mo')} placeholder="0"/>
+      <Field label="↳ Gross Annual $" auto value={r ? af(r.gyr) : '—'}/>
+      <Field label="Vacancy %" tip="Enter 5 for 5% — PNW avg 4-5%" value={p.vac_pct} onChange={s('vac_pct')} placeholder="5" step="0.5"/>
+      <Field label="↳ EGI $" tip="Effective Gross Income after vacancy" auto value={r ? af(r.egi) : '—'}/>
+
+      <div className="sec-head">D — Expenses (Annual)</div>
+      <Field label="Property Taxes $" tip="Get actual bill from county assessor — will jump ~20-40% post-purchase in WA" value={p.ptax} onChange={s('ptax')} placeholder="6500"/>
+      <Field label="Insurance $" tip="Landlord policy: ~$900 condo, $1,800 SFH under $700K" value={p.ins} onChange={s('ins')} placeholder="1800"/>
+      <Field label="↳ HOA Annual $" auto value={r ? af(r.hoa_yr) : '—'}/>
+      <Field label="Mgmt %" tip="Enter 8 for 8% of EGI. Model at 8 even if self-managing — stress test." value={p.mgmt_pct} onChange={s('mgmt_pct')} placeholder="8" step="0.5"/>
+      <Field label="Repairs %" tip="Enter 1 for 1% of price/yr. 0.75 under 15yr, 1.0 for 15-25yr, 1.25 for 25yr+" value={p.rep_pct} onChange={s('rep_pct')} placeholder="1.0" step="0.25"/>
+      <Field label="CapEx %" tip="Enter 0.5 for 0.5%/yr. Condo 0.25, SFH under 15yr 0.5, 15-25yr 0.75, 25yr+ 1.0" value={p.capex_pct} onChange={s('capex_pct')} placeholder="0.5" step="0.25"/>
+      <Field label="Landscape/Utils $" tip="0 if tenant pays utilities" value={p.landscape} onChange={s('landscape')} placeholder="0"/>
+      <Field label="Other Exp $" value={p.other_exp} onChange={s('other_exp')} placeholder="0"/>
+      <Field label="↳ Total OpEx $" auto value={r ? af(r.toe) : '—'}/>
+      <Field label="↳ Expense Ratio" tip="50% rule of thumb" auto value={r ? ap(r.exp_r) : '—'}/>
+
+      <div className="sec-head">F — Exit Assumptions</div>
+      <Field label="Appreciation %/yr" tip="PNW 10yr historical 4-5%. Enter 3.5 for 3.5%." value={p.appx_pct} onChange={s('appx_pct')} placeholder="3.5" step="0.5"/>
+      <Field label="Hold (years)" value={p.hold} onChange={s('hold')} placeholder="5"/>
+      <Field label="Selling Costs %" tip="Agent + title ~6%. Enter 6." value={p.sell_cost_pct} onChange={s('sell_cost_pct')} placeholder="6" step="0.5"/>
+      <Field label="Rent Growth %/yr" tip="PNW avg 3-5%/yr. Enter 3." value={p.rent_grow_pct} onChange={s('rent_grow_pct')} placeholder="3" step="0.5"/>
+      <Field label="Exit Cap Rate %" tip="PNW residential 4-6%. Lower = higher exit price." value={p.exit_cap_pct} onChange={s('exit_cap_pct')} placeholder="5" step="0.5"/>
+    </div>
+  );
+}
+
+// ─── OVERVIEW TAB ────────────────────────────────────────────────────────────
+function Overview({p, r}) {
+  const cfcls = r.cf_mo>0?'pos':r.cf_mo>-800?'warn':'neg';
+  const capcls= r.cap>=0.05?'pos':r.cap>=0.03?'warn':'neg';
+  const coccls= r.coc>=0.08?'pos':r.coc>=0?'warn':'neg';
+  const dscrcls=r.dscr>=1.25?'pos':r.dscr>=1.0?'warn':'neg';
+  return (
+    <div>
+      <div className="metrics-grid">
+        <div className="metric">
+          <div className="m-lbl">Monthly Cash Flow</div>
+          <div className={`m-val ${cfcls}`}>{fd(r.cf_mo)}</div>
+          <div className="m-sub">{r.cf_mo<0?'Appreciation play — writing a check':'Positive cash flow'}</div>
+        </div>
+        <div className="metric">
+          <div className="m-lbl">Cap Rate</div>
+          <div className={`m-val ${capcls}`}>{fp(r.cap)}</div>
+          <div className="m-sub">Target ≥ 5%; PNW often 3–4.5%</div>
+        </div>
+        <div className="metric">
+          <div className="m-lbl">Cash-on-Cash</div>
+          <div className={`m-val ${coccls}`}>{fp(r.coc)}</div>
+          <div className="m-sub">Target ≥ 8% for CF investors</div>
+        </div>
+        <div className="metric">
+          <div className="m-lbl">NOI</div>
+          <div className="m-val">{fd(r.noi)}</div>
+          <div className="m-sub">Before debt service</div>
+        </div>
+        <div className="metric">
+          <div className="m-lbl">DSCR</div>
+          <div className={`m-val ${dscrcls}`}>{fx(r.dscr)}</div>
+          <div className="m-sub">Lenders need ≥ 1.25×</div>
+        </div>
+        <div className="metric">
+          <div className="m-lbl">GRM</div>
+          <div className="m-val">{fx(r.grm)}</div>
+          <div className="m-sub">PNW typical 16–22×</div>
+        </div>
+        <div className="metric">
+          <div className="m-lbl">1% Rule</div>
+          <div className={`m-val ${r.one_pct>=0.01?'pos':'neg'}`}>{fp(r.one_pct)}</div>
+          <div className="m-sub">≥ 1% ideal — rare in PNW</div>
+        </div>
+        <div className="metric">
+          <div className="m-lbl">Break-Even Occ.</div>
+          <div className={`m-val ${r.be<=0.90?'pos':r.be<=0.95?'warn':'neg'}`}>{fp(r.be)}</div>
+          <div className="m-sub">Min occupancy to cover all costs</div>
+        </div>
+      </div>
+
+      <div className="chart-wrap">
+        <div className="chart-lbl">10-Year Cash Flow — solid line: annual CF · dashed: cumulative</div>
+        <Chart years={r.years}/>
+      </div>
+
+      <div className="section-title" style={{marginBottom:8}}>Exit Analysis — {p.hold}-Year Hold</div>
+      <div className="exit-grid">
+        <div className="exit-cell"><div className="e-lbl">Total Cash Invested</div><div className="e-val">{fd(r.tcash)}</div></div>
+        <div className="exit-cell"><div className="e-lbl">Sale Price (Appx-Based)</div><div className="e-val">{fd(r.appx_exit)}</div></div>
+        <div className="exit-cell"><div className="e-lbl">Cap-Rate Floor Value</div><div className="e-val" style={{color:'var(--muted)'}}>{fd(r.cap_exit)}</div></div>
+        <div className="exit-cell"><div className="e-lbl">Remaining Loan</div><div className="e-val" style={{color:'var(--muted)'}}>{fd(r.bal)}</div></div>
+        <div className="exit-cell"><div className="e-lbl">Equity at Sale</div><div className="e-val" style={{color:r.equity>0?'var(--accent)':'var(--red)'}}>{fd(r.equity)}</div></div>
+        <div className="exit-cell"><div className="e-lbl">Cumulative Cash Flows</div><div className="e-val" style={{color:r.cum_cf>0?'var(--accent)':'var(--red)'}}>{fd(r.cum_cf)}</div></div>
+        <div className="exit-cell"><div className="e-lbl">Total Profit</div><div className="e-val" style={{color:r.profit>0?'var(--accent)':'var(--red)',fontSize:20}}>{fd(r.profit)}</div></div>
+        <div className="exit-cell"><div className="e-lbl">Annualized Total ROI</div><div className="e-val" style={{color:r.ann_roi>0.06?'var(--accent)':r.ann_roi>0?'var(--yellow)':'var(--red)',fontSize:20}}>{fp(r.ann_roi)}</div></div>
+      </div>
+    </div>
+  );
+}
+
+// ─── PROFORMA TAB ────────────────────────────────────────────────────────────
+function ProForma({r}) {
+  const rows = [
+    {sec:'REVENUE'},
+    {lbl:'Gross Annual Rent',k:'ry',f:fd},
+    {lbl:'Effective Gross Income',k:'ey',f:fd,hl:true},
+    {sec:'EXPENSES'},
+    {lbl:'Total Operating Expenses',k:'toey',f:v=>fd(-v),neg:true},
+    {sec:'NOI'},
+    {lbl:'Net Operating Income',k:'noy',f:fd,hl:true,dyn:true},
+    {sec:'CASH FLOW'},
+    {lbl:'Annual P&I',static:fd(-r.ann_pmt)},
+    {lbl:'Annual Cash Flow',k:'cfy',f:fd,hl:true,dyn:true},
+    {lbl:'Monthly Cash Flow',k:'cfmo',f:fd,dyn:true},
+    {lbl:'Cash-on-Cash',k:'coc',f:fp,dyn:true},
+    {sec:'PROPERTY VALUE'},
+    {lbl:'Est. Value',k:'vy',f:fd},
+    {lbl:'Cap Rate (on value)',k:'capy',f:fp},
+    {lbl:'Cumulative CF',k:'cum',f:fd,dyn:true},
+  ];
+  const ys = r.years;
+  return (
+    <div className="pf-scroll">
+      <table className="pf-table">
+        <thead><tr>
+          <th style={{textAlign:'left',minWidth:160}}>Item</th>
+          {ys.map(y=><th key={y.y}>Year {y.y}</th>)}
+        </tr></thead>
+        <tbody>
+          {rows.map((row,i)=>{
+            if (row.sec) return <tr key={i} className="sec"><td colSpan={12}>{row.sec}</td></tr>;
+            return (
+              <tr key={i} className={row.hl?'hl':''}>
+                <td>{row.lbl}</td>
+                {ys.map(yr=>{
+                  const val = row.static!=null ? null : (row.k ? yr[row.k] : null);
+                  const disp = row.static!=null ? row.static : (val!=null?row.f(val):'—');
+                  const cls = row.dyn&&val!=null ? (val>0?'pos':val<0?'neg':'') : row.neg?'neg':'';
+                  return <td key={yr.y} className={cls}>{disp}</td>;
+                })}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ─── COMPARE TAB ─────────────────────────────────────────────────────────────
+function Compare({props}) {
+  const active = props.map((p,i)=>({p,r:calc(p),i})).filter(x=>x.r);
+  if (!active.length) return (
+    <div className="empty">
+      <div className="empty-icon">📊</div>
+      <div className="empty-text">Enter at least one property to compare</div>
+    </div>
+  );
+
+  const bestCF = Math.max(...active.map(x=>x.r.cf_mo));
+  const rows = [
+    {sec:'BASICS'},
+    {lbl:'Purchase Price',f:x=>fd(parseFloat(x.p.price)||null)},
+    {lbl:'Total Cash In',f:x=>fd(x.r.tcash),v:x=>x.r.tcash,better:false},
+    {lbl:'Monthly Rent',f:x=>fd(parseFloat(x.p.rent_mo)||null),v:x=>parseFloat(x.p.rent_mo),better:true},
+    {lbl:'Monthly P&I',f:x=>fd(x.r.mp),better:false},
+    {sec:'KEY METRICS'},
+    {lbl:'Cap Rate',f:x=>fp(x.r.cap),v:x=>x.r.cap,better:true},
+    {lbl:'Cash-on-Cash',f:x=>fp(x.r.coc),v:x=>x.r.coc,better:true},
+    {lbl:'Monthly CF',f:x=>fd(x.r.cf_mo),v:x=>x.r.cf_mo,better:true},
+    {lbl:'NOI',f:x=>fd(x.r.noi),v:x=>x.r.noi,better:true},
+    {lbl:'GRM',f:x=>fx(x.r.grm),v:x=>x.r.grm,better:false},
+    {lbl:'DSCR',f:x=>fx(x.r.dscr),v:x=>x.r.dscr,better:true},
+    {lbl:'1% Rule',f:x=>fp(x.r.one_pct),v:x=>x.r.one_pct,better:true},
+    {lbl:'Break-Even Occ',f:x=>fp(x.r.be),v:x=>x.r.be,better:false},
+    {sec:'EXIT'},
+    {lbl:'Equity at Sale',f:x=>fd(x.r.equity),v:x=>x.r.equity,better:true},
+    {lbl:'Cumulative CF',f:x=>fd(x.r.cum_cf),v:x=>x.r.cum_cf,better:true},
+    {lbl:'Total Profit',f:x=>fd(x.r.profit),v:x=>x.r.profit,better:true},
+    {lbl:'Ann. Total ROI',f:x=>fp(x.r.ann_roi),v:x=>x.r.ann_roi,better:true},
+    {sec:'WINNER'},
+    {lbl:'Best Monthly CF',winner:true},
+  ];
+  return (
+    <table className="cmp-table">
+      <thead><tr>
+        <th>Metric</th>
+        {active.map(x=><th key={x.i} style={{color:COLORS[x.i]}}>{x.p.name||`Prop ${String.fromCharCode(65+x.i)}`}</th>)}
+      </tr></thead>
+      <tbody>
+        {rows.map((row,i)=>{
+          if (row.sec) return <tr key={i} className="sec"><td colSpan={active.length+1}>{row.sec}</td></tr>;
+          if (row.winner) return (
+            <tr key={i}>
+              <td>★ Best Monthly CF</td>
+              {active.map(x=><td key={x.i} className={x.r.cf_mo===bestCF?'best':''}>{x.r.cf_mo===bestCF?'✓ BEST':''}</td>)}
+            </tr>
+          );
+          const vals = row.v ? active.map(x=>row.v(x)) : null;
+          const best = vals ? (row.better?Math.max(...vals):Math.min(...vals)) : null;
+          const worst= vals ? (row.better?Math.min(...vals):Math.max(...vals)) : null;
+          return (
+            <tr key={i}>
+              <td>{row.lbl}</td>
+              {active.map(x=>{
+                const v = row.v?row.v(x):null;
+                const cls = vals&&active.length>1 ? (v===best?'best':v===worst?'worst':'') : '';
+                return <td key={x.i} className={cls}>{row.f(x)}</td>;
+              })}
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+// ─── APP ─────────────────────────────────────────────────────────────────────
+function App() {
+  const [props, setProps] = useState(SEED);
+  const [tab, setTab] = useState(0);
+  const [view, setView] = useState('overview');
+  const [scenario, setScenario] = useState(null);
+  const [paste, setPaste] = useState('');
+  const [status, setStatus] = useState(null);
+  const [loadStatus, setLoadStatus] = useState(null);
+  const fileInputRef = useRef(null);
+
+  // Load one or more .json files from data/ folder
+  const handleFileLoad = (e) => {
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+    // Reset file input so same file can be re-selected
+    e.target.value = '';
+
+    const readers = files.slice(0,4).map(file =>
+      new Promise((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = ev => {
+          try { resolve(JSON.parse(ev.target.result)); }
+          catch { reject(new Error(`${file.name}: invalid JSON`)); }
+        };
+        fr.onerror = () => reject(new Error(`${file.name}: read error`));
+        fr.readAsText(file);
+      })
+    );
+
+    Promise.all(readers)
+      .then(dataArr => {
+        // Flatten: each file may be a single object or an array
+        const flat = dataArr.flatMap(d => Array.isArray(d) ? d : [d]);
+        const next = flat.slice(0,4).map((d,i) => normalize(d, i));
+        while (next.length < 4) next.push({...SEED[next.length]});
+        // Load into first available slots (don't overwrite all if loading 1 file)
+        if (files.length === 1) {
+          // Single file: load into the currently active tab
+          const updated = [...props];
+          updated[tab] = next[0];
+          setProps(updated);
+          setLoadStatus({ok:true, msg:`Loaded into ${COLORS[tab]?'':''}${props[tab].name||'Property '+(String.fromCharCode(65+tab))}`});
+        } else {
+          setProps(next);
+          setLoadStatus({ok:true, msg:`Loaded ${flat.length} propert${flat.length===1?'y':'ies'}`});
+        }
+        setView('overview');
+        setTimeout(()=>setLoadStatus(null), 3000);
+      })
+      .catch(err => {
+        setLoadStatus({ok:false, msg:err.message});
+        setTimeout(()=>setLoadStatus(null), 4000);
+      });
+  };
+
+  const updateProp = (i,val) => { const n=[...props]; n[i]=val; setProps(n); };
+
+  const applyScenario = s => {
+    const next = s===scenario ? null : s;
+    setScenario(next);
+    if (next) setProps(prev=>prev.map(p=>({...p,...SCENARIOS[next]})));
+  };
+
+  // Normalize any Claude research JSON shape → internal flat prop object
+  const normalize = (d, seedIdx) => {
+    // Helper: coerce to string, treat null/undefined as ''
+    const s = v => (v == null ? '' : String(v));
+
+    // Pull from nested sections OR flat keys, whichever is present
+    const a = d.section_a_basics  || {};
+    const c = d.section_c_income  || {};
+    const e = d.section_d_expenses|| {};
+    const f = d.section_f_exit    || {};
+
+    // Name: prefer name_address, then name, then address
+    const name = d.name_address || d.name || d.address || d.property || `Property ${String.fromCharCode(65+seedIdx)}`;
+
+    const flat = {
+      name:           s(name),
+      type:           s(d.property_type || d.type || SEED[seedIdx].type),
+      // Section A
+      price:          s(a.purchase_price       ?? d.price            ?? d.purchase_price),
+      arv:            s(a.arv                  ?? d.arv),
+      closing:        s(a.closing_costs        ?? d.closing          ?? d.closing_costs),
+      reno:           s(a.initial_renovation   ?? d.reno             ?? d.renovation      ?? d.initial_renovation ?? 0),
+      hoa_mo:         s(a.hoa_monthly          ?? d.hoa_mo           ?? d.hoa_monthly     ?? 0),
+      yr_built:       s(a.year_built           ?? d.yr_built         ?? d.year_built),
+      sqft:           s(a.sq_ft                ?? d.sqft             ?? d.sq_ft           ?? d.square_footage),
+      beds:           s(a.beds                 ?? d.beds             ?? d.bedrooms),
+      baths:          s(a.baths                ?? d.baths            ?? d.bathrooms),
+      // Section B — financing usually stays at defaults from SEED unless provided
+      dp_pct:         s(d.dp_pct               ?? d.down_payment_pct ?? SEED[seedIdx].dp_pct),
+      ir_pct:         s(d.ir_pct               ?? d.interest_rate    ?? SEED[seedIdx].ir_pct),
+      term:           s(d.term                 ?? d.loan_term        ?? SEED[seedIdx].term),
+      // Section C
+      rent_mo:        s(c.monthly_gross_rent   ?? d.rent_mo          ?? d.monthly_rent    ?? d.monthly_gross_rent),
+      other_mo:       s(c.other_monthly_income ?? d.other_mo         ?? d.other_income    ?? 0),
+      // Section D
+      vac_pct:        s(e.vacancy_pct          ?? d.vac_pct          ?? d.vacancy_pct     ?? SEED[seedIdx].vac_pct),
+      ptax:           s(e.property_taxes_annual?? d.ptax             ?? d.property_taxes),
+      ins:            s(e.insurance_annual     ?? d.ins              ?? d.insurance),
+      mgmt_pct:       s(e.property_mgmt_pct   ?? d.mgmt_pct         ?? d.management_pct  ?? SEED[seedIdx].mgmt_pct),
+      rep_pct:        s(e.repairs_pct          ?? d.rep_pct          ?? d.repairs_pct     ?? SEED[seedIdx].rep_pct),
+      capex_pct:      s(e.capex_pct            ?? d.capex_pct        ?? SEED[seedIdx].capex_pct),
+      landscape:      s(e.landscaping_utilities_annual ?? d.landscape ?? d.landscaping    ?? 0),
+      other_exp:      s(e.other_expenses       ?? d.other_exp        ?? 0),
+      // Section F
+      appx_pct:       s(f.appreciation_pct    ?? d.appx_pct         ?? d.appreciation_pct?? SEED[seedIdx].appx_pct),
+      hold:           s(f.hold_period         ?? d.hold             ?? d.hold_period      ?? SEED[seedIdx].hold),
+      sell_cost_pct:  s(f.selling_costs_pct   ?? d.sell_cost_pct    ?? d.selling_costs   ?? SEED[seedIdx].sell_cost_pct),
+      rent_grow_pct:  s(f.rent_growth_pct     ?? d.rent_grow_pct    ?? d.rent_growth     ?? SEED[seedIdx].rent_grow_pct),
+      exit_cap_pct:   s(f.exit_cap_rate_pct   ?? d.exit_cap_pct     ?? d.exit_cap_rate   ?? SEED[seedIdx].exit_cap_pct),
+    };
+
+    // Fill any empty strings with seed defaults so calc() has something to work with
+    const seed = SEED[seedIdx];
+    Object.keys(flat).forEach(k => {
+      if (flat[k] === '' || flat[k] === 'null' || flat[k] === 'undefined') {
+        flat[k] = seed[k] ?? '';
+      }
+    });
+
+    return flat;
+  };
+
+  const parsePaste = () => {
+    try {
+      let txt = paste.trim();
+      const m = txt.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (m) txt = m[1].trim();
+      const data = JSON.parse(txt);
+      // Accept: array, single object, or {properties:[...]}
+      const arr = Array.isArray(data) ? data : data.properties ? data.properties : [data];
+      const next = arr.slice(0,4).map((d,i) => normalize(d, i));
+      while (next.length < 4) next.push({...SEED[next.length]});
+      setProps(next); setTab(0); setView('overview');
+      setStatus({ok:true, msg:`Loaded ${arr.length} propert${arr.length===1?'y':'ies'}`});
+    } catch(e) {
+      setStatus({ok:false, msg:`Parse error: ${e.message}`});
+    }
+  };
+
+  const r = calc(props[tab]);
+  const scDesc = scenario==='conservative'?'Appx 3% · Rent +2% · Rate 7.5%':
+                 scenario==='optimistic'?'Appx 5.5% · Rent +4.5% · Rate 6.5%':
+                 scenario==='base'?'Appx 4% · Rent +3% · Rate 7%':'';
+
+  return (
+    <div style={{display:'flex',flexDirection:'column',height:'100vh'}}>
+      {/* Header */}
+      <div className="app-header">
+        <span className="logo">RE ANALYZER <span className="logo-sub">· PNW</span></span>
+        <span style={{fontSize:11,color:'var(--muted)'}}>
+          {props.filter(p=>parseFloat(p.price)>0).length} propert{props.filter(p=>parseFloat(p.price)>0).length===1?'y':'ies'} loaded
+        </span>
+        <div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:8}}>
+          {loadStatus && (
+            <span className={`status ${loadStatus.ok?'status-ok':'status-err'}`}>{loadStatus.msg}</span>
+          )}
+          <button
+            className="btn btn-ghost"
+            title="Load a saved property JSON from data/ folder. Single file = loads into current tab. Multiple files = loads all."
+            onClick={()=>fileInputRef.current?.click()}
+          >
+            📂 Load Saved
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json,application/json"
+            multiple
+            style={{display:'none'}}
+            onChange={handleFileLoad}
+          />
+        </div>
+      </div>
+
+      {/* Main */}
+      <div className="app-main">
+        {/* Left */}
+        <div className="left-panel">
+          <div className="paste-zone">
+            <div className="zone-label">Paste Claude Research JSON</div>
+            <textarea className="paste-area" placeholder='[{"name":"123 Main...","price":"650000",...}]'
+              value={paste} onChange={e=>{setPaste(e.target.value);setStatus(null)}} spellCheck={false}/>
+            <div className="paste-actions">
+              <button className="btn btn-primary" onClick={parsePaste}>Parse & Load</button>
+              <button className="btn btn-ghost" onClick={()=>{setPaste('');setStatus(null)}}>Clear</button>
+              {status&&<span className={`status ${status.ok?'status-ok':'status-err'}`}>{status.msg}</span>}
+            </div>
+          </div>
+          <div className="prop-tabs">
+            {props.map((p,i)=>(
+              <button key={i} className={`prop-tab${tab===i?' active':''}`}
+                style={{borderBottom:`2px solid ${tab===i?COLORS[i]:'transparent'}`}}
+                onClick={()=>setTab(i)}>
+                {p.name||`Prop ${String.fromCharCode(65+i)}`}
+              </button>
+            ))}
+          </div>
+          <InputPanel prop={props[tab]} onChange={v=>updateProp(tab,v)}/>
+        </div>
+
+        {/* Right */}
+        <div className="right-panel">
+          <div className="scenario-bar">
+            <span className="scen-lbl">Scenario:</span>
+            {['conservative','base','optimistic'].map(s=>(
+              <button key={s} className={`scen-btn${scenario===s?' active':''}`} onClick={()=>applyScenario(s)}>
+                {s.charAt(0).toUpperCase()+s.slice(1)}
+              </button>
+            ))}
+            {scenario&&<span className="scen-desc">{scDesc}</span>}
+          </div>
+          <div className="res-tabs">
+            {[['overview','Overview'],['proforma','10-Yr Pro Forma'],['compare','Compare All']].map(([id,lbl])=>(
+              <button key={id} className={`res-tab${view===id?' active':''}`} onClick={()=>setView(id)}>{lbl}</button>
+            ))}
+          </div>
+          <div className="res-body">
+            {view==='overview' && (r
+              ? <Overview p={props[tab]} r={r}/>
+              : <div className="empty"><div className="empty-icon">📊</div><div className="empty-text">Enter a purchase price to see results</div><div className="empty-sub">Or paste a Claude research JSON above</div></div>
+            )}
+            {view==='proforma' && (r
+              ? <ProForma r={r}/>
+              : <div className="empty"><div className="empty-icon">📈</div><div className="empty-text">Enter property data to see pro forma</div></div>
+            )}
+            {view==='compare' && <Compare props={props}/>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App/>);
+</script>
+</body>
+</html>

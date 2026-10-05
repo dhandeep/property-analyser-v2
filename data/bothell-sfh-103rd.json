@@ -1,0 +1,48 @@
+{
+  "name": "19314 103rd Ave NE, Bothell WA",
+  "type": "SFH",
+  "price": "799950",
+  "arv": "780000",
+  "closing": "16000",
+  "reno": "10000",
+  "hoa_mo": "0",
+  "yr_built": "1976",
+  "sqft": "2040",
+  "beds": "4",
+  "baths": "3",
+  "dp_pct": "20",
+  "ir_pct": "7.0",
+  "term": "30",
+  "rent_mo": "3800",
+  "other_mo": "0",
+  "vac_pct": "4",
+  "ptax": "8500",
+  "ins": "2200",
+  "mgmt_pct": "8",
+  "rep_pct": "1.25",
+  "capex_pct": "1.0",
+  "landscape": "1200",
+  "other_exp": "0",
+  "appx_pct": "4.0",
+  "hold": "7",
+  "sell_cost_pct": "6",
+  "rent_grow_pct": "3.0",
+  "exit_cap_pct": "4.5",
+  "_meta": {
+    "source": "Claude research — 2026-10",
+    "confidence_low": ["arv", "appreciation_pct", "rent_growth_pct", "exit_cap_rate_pct", "initial_renovation"],
+    "notes": {
+      "ptax": "Listing shows $1,051/yr (senior exemption, will NOT transfer). Estimated at ~0.88% of $965K assessed value. Verify at blue.kingcounty.gov.",
+      "arv": "No clean 3-comp within 6mo. Anchored to Zestimate $771.9K and relisted comp at 10131 NE 192nd St. Low confidence.",
+      "appreciation_pct": "Bothell currently down 5.2% YoY. 10-yr base case used. 6.5% is optimistic — conservative case 3%.",
+      "rent_mo": "Medium confidence. Verify on Rentometer for 98011.",
+      "reno": "Low confidence — no inspection data. 1976 build likely needs HVAC/electrical review."
+    },
+    "red_flags": [
+      "Property taxes show senior exemption ($1,051/yr) — will reset to ~$8,500/yr post-purchase",
+      "1976 build — CapEx risk: HVAC, roof, electrical panel all approaching end of life",
+      "Bothell YoY appreciation currently negative (-5.2%) — appreciation thesis needs longer hold",
+      "ARV below purchase price — underwater on day 1 before reno"
+    ]
+  }
+}
