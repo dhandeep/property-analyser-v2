@@ -101,6 +101,11 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .pf-table tr.hl td{color:var(--text)}
 .pf-table .pos{color:var(--accent)!important}
 .pf-table .neg{color:var(--red)!important}
+.pf-table th:first-child,.pf-table td:first-child{position:sticky;left:0;z-index:2;background:var(--bg);box-shadow:inset -1px 0 0 var(--border)}
+.pf-table tr.sec td{position:static;box-shadow:none}
+.pf-table tr.sec td span{position:sticky;left:10px}
+.pf-table td.pf-tip{cursor:help;text-decoration:underline dotted;text-decoration-color:#3a4d60}
+.pf-table td.pf-tip:hover::after{left:auto;right:0;width:200px;white-space:pre-line;text-align:left;font-family:var(--mono)}
 
 /* Compare table */
 .cmp-table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:20px}
@@ -197,19 +202,39 @@ function calc(p) {
   const all_years = Array.from({length:30},(_,i)=>i+1).map(y=>{
     const ry   = gyr*Math.pow(1+rg/100,y-1);
     const ey   = ry*(1-vac/100);
-    const toey = -(ptax*Math.pow(1.02,y-1)) -(ins*Math.pow(1.02,y-1))
-               -(hoa_yr*Math.pow(1.02,y-1)) -(ey*(mgmt/100))
-               -(price*(rep/100)*Math.pow(1+appx/100,y-1))
-               -(price*(cpx/100)*Math.pow(1+appx/100,y-1))
-               -((land+oth)*Math.pow(1.02,y-1));
+    const exp  = {
+      'Property Tax': ptax*Math.pow(1.02,y-1),
+      'Insurance':    ins*Math.pow(1.02,y-1),
+      'HOA':          hoa_yr*Math.pow(1.02,y-1),
+      'Management':   ey*(mgmt/100),
+      'Repairs':      price*(rep/100)*Math.pow(1+appx/100,y-1),
+      'CapEx':        price*(cpx/100)*Math.pow(1+appx/100,y-1),
+      'Landscaping & Other': (land+oth)*Math.pow(1.02,y-1),
+    };
+    const toey = -Object.values(exp).reduce((s,v)=>s+v,0);
     const noy  = ey+toey;
     const piy  = y<=term ? ann_pmt : 0;
     const cfy  = noy-piy;
     const vy   = price*Math.pow(1+appx/100,y);
-    return {y, ry, ey, toey:Math.abs(toey), noy, piy, cfy, cfmo:cfy/12,
+    return {y, ry, ey, exp, toey:Math.abs(toey), noy, piy, cfy, cfmo:cfy/12,
             coc:tcash?cfy/tcash:0, vy, capy:vy?noy/vy:0};
   });
   all_years.reduce((s,r)=>(r.cum=s+r.cfy),0);
+  // If sold at end of each year
+  let oop_y=tcash, dist_y=0;
+  all_years.forEach((r,i)=>{
+    oop_y  += Math.max(-r.cfy,0);
+    dist_y += Math.max(r.cfy,0);
+    r.nety  = r.vy*(1-sc/100);
+    r.baly  = loanBal(ir,term,r.y,mp);
+    r.eqy   = r.nety-r.baly;
+    r.oopy  = oop_y;
+    r.profy = r.eqy+r.cum-tcash;
+    const f = [-tcash, ...all_years.slice(0,i+1).map(x=>x.cfy)];
+    f[f.length-1] += r.eqy;
+    r.irry  = irr(f);
+    r.emy   = oop_y ? (r.eqy+dist_y)/oop_y : null;
+  });
   const years    = all_years.slice(0,10);
   const pf_years = all_years.filter(r=>r.y<=10 || r.y%5===0);
 
@@ -462,7 +487,8 @@ function ProForma({r}) {
     {lbl:'Gross Annual Rent',k:'ry',f:fd},
     {lbl:'Effective Gross Income',k:'ey',f:fd,hl:true},
     {sec:'EXPENSES'},
-    {lbl:'Total Operating Expenses',k:'toey',f:v=>fd(-v),neg:true},
+    {lbl:'Total Operating Expenses',k:'toey',f:v=>fd(-v),neg:true,
+     tip:yr=>Object.entries(yr.exp).filter(([,v])=>v).map(([k,v])=>`${k}: ${fd(v)}`).join('\n')},
     {sec:'NOI'},
     {lbl:'Net Operating Income',k:'noy',f:fd,hl:true,dyn:true},
     {sec:'CASH FLOW'},
@@ -472,8 +498,16 @@ function ProForma({r}) {
     {lbl:'Cash-on-Cash',k:'coc',f:fp,dyn:true},
     {sec:'PROPERTY VALUE'},
     {lbl:'Est. Value',k:'vy',f:fd},
-    {lbl:'Cap Rate (on value)',k:'capy',f:fp},
+    {lbl:'Cap Rate (on Est. Value)',k:'capy',f:fp},
     {lbl:'Cumulative CF',k:'cum',f:fd,dyn:true},
+    {sec:'IF SOLD THIS YEAR'},
+    {lbl:'Net Sale Proceeds',k:'nety',f:fd},
+    {lbl:'Loan Balance',k:'baly',f:fd},
+    {lbl:'Equity at Sale',k:'eqy',f:fd,hl:true,dyn:true},
+    {lbl:'Total Out-of-Pocket',k:'oopy',f:fd},
+    {lbl:'Total Profit',k:'profy',f:fd,hl:true,dyn:true},
+    {lbl:'IRR',k:'irry',f:fp,hl:true,dyn:true},
+    {lbl:'Equity Multiple',k:'emy',f:fx,cls:v=>v>=1?'pos':'neg'},
   ];
   const ys = r.pf_years;
   return (
@@ -485,15 +519,17 @@ function ProForma({r}) {
         </tr></thead>
         <tbody>
           {rows.map((row,i)=>{
-            if (row.sec) return <tr key={i} className="sec"><td colSpan={ys.length+1}>{row.sec}</td></tr>;
+            if (row.sec) return <tr key={i} className="sec"><td colSpan={ys.length+1}><span>{row.sec}</span></td></tr>;
             return (
               <tr key={i} className={row.hl?'hl':''}>
                 <td>{row.lbl}</td>
                 {ys.map(yr=>{
                   const val = row.static!=null ? null : (row.k ? yr[row.k] : null);
                   const disp = row.static!=null ? row.static : (val!=null?row.f(val):'—');
-                  const cls = row.dyn&&val!=null ? (val>0?'pos':val<0?'neg':'') : row.neg?'neg':'';
-                  return <td key={yr.y} className={cls}>{disp}</td>;
+                  const cls = row.cls&&val!=null ? row.cls(val)
+                            : row.dyn&&val!=null ? (val>0?'pos':val<0?'neg':'') : row.neg?'neg':'';
+                  const tip = row.tip ? row.tip(yr) : undefined;
+                  return <td key={yr.y} className={`${cls}${tip?' pf-tip':''}`} data-tip={tip}>{disp}</td>;
                 })}
               </tr>
             );
