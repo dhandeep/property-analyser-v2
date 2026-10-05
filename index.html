@@ -182,8 +182,8 @@ function calc(p) {
   const cf_yr   = noi-ann_pmt;
   const cf_mo   = cf_yr/12;
 
-  // Build 10-yr proforma
-  const years = Array.from({length:10},(_,i)=>i+1).map(y=>{
+  // Build 30-yr proforma
+  const all_years = Array.from({length:30},(_,i)=>i+1).map(y=>{
     const ry   = gyr*Math.pow(1+rg/100,y-1);
     const ey   = ry*(1-vac/100);
     const toey = -(ptax*Math.pow(1.02,y-1)) -(ins*Math.pow(1.02,y-1))
@@ -192,14 +192,17 @@ function calc(p) {
                -(price*(cpx/100)*Math.pow(1+appx/100,y-1))
                -((land+oth)*Math.pow(1.02,y-1));
     const noy  = ey+toey;
-    const cfy  = noy-ann_pmt;
+    const piy  = y<=term ? ann_pmt : 0;
+    const cfy  = noy-piy;
     const vy   = price*Math.pow(1+appx/100,y);
-    return {y, ry, ey, toey:Math.abs(toey), noy, cfy, cfmo:cfy/12,
+    return {y, ry, ey, toey:Math.abs(toey), noy, piy, cfy, cfmo:cfy/12,
             coc:tcash?cfy/tcash:0, vy, capy:vy?noy/vy:0};
   });
-  years.forEach((r,i)=>{ r.cum=years.slice(0,i+1).reduce((s,x)=>s+x.cfy,0); });
+  all_years.reduce((s,r)=>(r.cum=s+r.cfy),0);
+  const years    = all_years.slice(0,10);
+  const pf_years = all_years.filter(r=>r.y<=10 || r.y%5===0);
 
-  const cum_cf = years.slice(0,hold).reduce((s,r)=>s+r.cfy,0);
+  const cum_cf = all_years.slice(0,hold).reduce((s,r)=>s+r.cfy,0);
   const noi_exit = noi*Math.pow(1+rg/100,hold);
   const cap_exit = ec ? noi_exit/(ec/100) : 0;
   const appx_exit= price*Math.pow(1+appx/100,hold);
@@ -216,7 +219,7 @@ function calc(p) {
            grm:gyr?price/gyr:0, one_pct:price?rent/price:0,
            dscr:ann_pmt?noi/ann_pmt:0, be:gyr?(toe+ann_pmt)/gyr:0,
            noi_exit, cap_exit, appx_exit, sale, net_proc, bal, equity,
-           cum_cf, profit, ann_roi, years };
+           cum_cf, profit, ann_roi, years, pf_years };
 }
 
 // ─── FORMAT ──────────────────────────────────────────────────────────────────
@@ -447,7 +450,7 @@ function ProForma({r}) {
     {sec:'NOI'},
     {lbl:'Net Operating Income',k:'noy',f:fd,hl:true,dyn:true},
     {sec:'CASH FLOW'},
-    {lbl:'Annual P&I',static:fd(-r.ann_pmt)},
+    {lbl:'Annual P&I',k:'piy',f:v=>fd(-v),neg:true},
     {lbl:'Annual Cash Flow',k:'cfy',f:fd,hl:true,dyn:true},
     {lbl:'Monthly Cash Flow',k:'cfmo',f:fd,dyn:true},
     {lbl:'Cash-on-Cash',k:'coc',f:fp,dyn:true},
@@ -456,7 +459,7 @@ function ProForma({r}) {
     {lbl:'Cap Rate (on value)',k:'capy',f:fp},
     {lbl:'Cumulative CF',k:'cum',f:fd,dyn:true},
   ];
-  const ys = r.years;
+  const ys = r.pf_years;
   return (
     <div className="pf-scroll">
       <table className="pf-table">
@@ -466,7 +469,7 @@ function ProForma({r}) {
         </tr></thead>
         <tbody>
           {rows.map((row,i)=>{
-            if (row.sec) return <tr key={i} className="sec"><td colSpan={12}>{row.sec}</td></tr>;
+            if (row.sec) return <tr key={i} className="sec"><td colSpan={ys.length+1}>{row.sec}</td></tr>;
             return (
               <tr key={i} className={row.hl?'hl':''}>
                 <td>{row.lbl}</td>
@@ -769,7 +772,7 @@ function App() {
             {scenario&&<span className="scen-desc">{scDesc}</span>}
           </div>
           <div className="res-tabs">
-            {[['overview','Overview'],['proforma','10-Yr Pro Forma'],['compare','Compare All']].map(([id,lbl])=>(
+            {[['overview','Overview'],['proforma','30-Yr Pro Forma'],['compare','Compare All']].map(([id,lbl])=>(
               <button key={id} className={`res-tab${view===id?' active':''}`} onClick={()=>setView(id)}>{lbl}</button>
             ))}
           </div>
