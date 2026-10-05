@@ -152,6 +152,17 @@ function loanBal(ir_pct, term, hold, mp) {
   if (paid >= n) return 0;
   return mp*(1-Math.pow(1+rate,-(n-paid)))/rate;
 }
+// IRR of cash flows indexed by year (flows[0] = today); bisection, null if no sign change
+function irr(flows) {
+  const npv = r => flows.reduce((s,f,t)=>s+f/Math.pow(1+r,t),0);
+  let lo=-0.99, hi=10, flo=npv(lo), fhi=npv(hi);
+  if (!isFinite(flo) || flo*fhi > 0) return null;
+  for (let i=0; i<200; i++) {
+    const mid=(lo+hi)/2, fm=npv(mid);
+    if (fm*flo > 0) { lo=mid; flo=fm; } else hi=mid;
+  }
+  return (lo+hi)/2;
+}
 function calc(p) {
   const n = v => parseFloat(v)||0;
   const price=n(p.price), dp_pct=n(p.dp_pct), ir=n(p.ir_pct),
@@ -202,7 +213,9 @@ function calc(p) {
   const years    = all_years.slice(0,10);
   const pf_years = all_years.filter(r=>r.y<=10 || r.y%5===0);
 
-  const cum_cf = all_years.slice(0,hold).reduce((s,r)=>s+r.cfy,0);
+  const hold_years = all_years.slice(0,hold);
+  const cum_cf = hold_years.reduce((s,r)=>s+r.cfy,0);
+  const oop    = tcash + hold_years.reduce((s,r)=>s+Math.max(-r.cfy,0),0);
   const noi_exit = noi*Math.pow(1+rg/100,hold);
   const cap_exit = ec ? noi_exit/(ec/100) : 0;
   const appx_exit= price*Math.pow(1+appx/100,hold);
@@ -211,7 +224,9 @@ function calc(p) {
   const bal      = loanBal(ir,term,hold,mp);
   const equity   = net_proc-bal;
   const profit   = equity+cum_cf-tcash;
-  const ann_roi  = tcash>0 ? Math.pow(Math.max((tcash+profit)/tcash,0.0001),1/hold)-1 : 0;
+  const flows    = [-tcash, ...hold_years.map(r=>r.cfy)];
+  flows[flows.length-1] += equity;
+  const irr_v    = irr(flows);
 
   return { dp, loan, mp, ann_pmt, tcash, gyr, vac_l, egi, hoa_yr, mgmt_c, rep_c, cpx_c,
            toe, exp_r:egi?toe/egi:0, noi, cf_yr, cf_mo, ppsf:sqft?price/sqft:0,
@@ -219,7 +234,7 @@ function calc(p) {
            grm:gyr?price/gyr:0, one_pct:price?rent/price:0,
            dscr:ann_pmt?noi/ann_pmt:0, be:gyr?(toe+ann_pmt)/gyr:0,
            noi_exit, cap_exit, appx_exit, sale, net_proc, bal, equity,
-           cum_cf, profit, ann_roi, years, pf_years };
+           cum_cf, oop, profit, irr:irr_v, years, pf_years };
 }
 
 // ─── FORMAT ──────────────────────────────────────────────────────────────────
@@ -337,7 +352,7 @@ function InputPanel({prop:p, onChange}) {
       <Field label="Loan Term (yrs)" value={p.term} onChange={s('term')} placeholder="30"/>
       <Field label="↳ Monthly P&I $" auto value={r ? af(r.mp) : '—'}/>
       <Field label="↳ Annual P&I $" auto value={r ? af(r.ann_pmt) : '—'}/>
-      <Field label="Total Cash In $" tip="Down + Closing + Renovation" auto value={r ? af(r.tcash) : '—'}/>
+      <Field label="Upfront Cash $" tip="Down + Closing + Renovation" auto value={r ? af(r.tcash) : '—'}/>
 
       <div className="sec-head">C — Income</div>
       <Field label="Monthly Rent $" tip="Market rent today — haircut Zillow Zestimate 5-8%" value={p.rent_mo} onChange={s('rent_mo')} placeholder="2800"/>
@@ -426,14 +441,15 @@ function Overview({p, r}) {
 
       <div className="section-title" style={{marginBottom:8}}>Exit Analysis — {p.hold}-Year Hold</div>
       <div className="exit-grid">
-        <div className="exit-cell"><div className="e-lbl">Total Cash Invested</div><div className="e-val">{fd(r.tcash)}</div></div>
+        <div className="exit-cell"><div className="e-lbl">Upfront Cash</div><div className="e-val">{fd(r.tcash)}</div></div>
+        <div className="exit-cell"><div className="e-lbl">Total Out-of-Pocket</div><div className="e-val">{fd(r.oop)}</div></div>
         <div className="exit-cell"><div className="e-lbl">Sale Price (Appx-Based)</div><div className="e-val">{fd(r.appx_exit)}</div></div>
         <div className="exit-cell"><div className="e-lbl">Cap-Rate Floor Value</div><div className="e-val" style={{color:'var(--muted)'}}>{fd(r.cap_exit)}</div></div>
         <div className="exit-cell"><div className="e-lbl">Remaining Loan</div><div className="e-val" style={{color:'var(--muted)'}}>{fd(r.bal)}</div></div>
         <div className="exit-cell"><div className="e-lbl">Equity at Sale</div><div className="e-val" style={{color:r.equity>0?'var(--accent)':'var(--red)'}}>{fd(r.equity)}</div></div>
         <div className="exit-cell"><div className="e-lbl">Cumulative Cash Flows</div><div className="e-val" style={{color:r.cum_cf>0?'var(--accent)':'var(--red)'}}>{fd(r.cum_cf)}</div></div>
         <div className="exit-cell"><div className="e-lbl">Total Profit</div><div className="e-val" style={{color:r.profit>0?'var(--accent)':'var(--red)',fontSize:20}}>{fd(r.profit)}</div></div>
-        <div className="exit-cell"><div className="e-lbl">Annualized Total ROI</div><div className="e-val" style={{color:r.ann_roi>0.06?'var(--accent)':r.ann_roi>0?'var(--yellow)':'var(--red)',fontSize:20}}>{fp(r.ann_roi)}</div></div>
+        <div className="exit-cell" style={{gridColumn:'1 / -1'}}><div className="e-lbl">IRR (Annualized Return)</div><div className="e-val" style={{color:r.irr==null?'var(--muted)':r.irr>0.06?'var(--accent)':r.irr>0?'var(--yellow)':'var(--red)',fontSize:20}}>{fp(r.irr)}</div></div>
       </div>
     </div>
   );
@@ -502,7 +518,8 @@ function Compare({props}) {
   const rows = [
     {sec:'BASICS'},
     {lbl:'Purchase Price',f:x=>fd(parseFloat(x.p.price)||null)},
-    {lbl:'Total Cash In',f:x=>fd(x.r.tcash),v:x=>x.r.tcash,better:false},
+    {lbl:'Upfront Cash',f:x=>fd(x.r.tcash),v:x=>x.r.tcash,better:false},
+    {lbl:'Total Out-of-Pocket',f:x=>fd(x.r.oop),v:x=>x.r.oop,better:false},
     {lbl:'Monthly Rent',f:x=>fd(parseFloat(x.p.rent_mo)||null),v:x=>parseFloat(x.p.rent_mo),better:true},
     {lbl:'Monthly P&I',f:x=>fd(x.r.mp),better:false},
     {sec:'KEY METRICS'},
@@ -518,7 +535,7 @@ function Compare({props}) {
     {lbl:'Equity at Sale',f:x=>fd(x.r.equity),v:x=>x.r.equity,better:true},
     {lbl:'Cumulative CF',f:x=>fd(x.r.cum_cf),v:x=>x.r.cum_cf,better:true},
     {lbl:'Total Profit',f:x=>fd(x.r.profit),v:x=>x.r.profit,better:true},
-    {lbl:'Ann. Total ROI',f:x=>fp(x.r.ann_roi),v:x=>x.r.ann_roi,better:true},
+    {lbl:'IRR',f:x=>fp(x.r.irr),v:x=>x.r.irr,better:true},
     {sec:'WINNER'},
     {lbl:'Best Monthly CF',winner:true},
   ];
@@ -537,7 +554,7 @@ function Compare({props}) {
               {active.map(x=><td key={x.i} className={x.r.cf_mo===bestCF?'best':''}>{x.r.cf_mo===bestCF?'✓ BEST':''}</td>)}
             </tr>
           );
-          const vals = row.v ? active.map(x=>row.v(x)) : null;
+          const vals = row.v ? active.map(x=>row.v(x)).filter(v=>v!=null) : null;
           const best = vals ? (row.better?Math.max(...vals):Math.min(...vals)) : null;
           const worst= vals ? (row.better?Math.min(...vals):Math.max(...vals)) : null;
           return (
@@ -545,7 +562,7 @@ function Compare({props}) {
               <td>{row.lbl}</td>
               {active.map(x=>{
                 const v = row.v?row.v(x):null;
-                const cls = vals&&active.length>1 ? (v===best?'best':v===worst?'worst':'') : '';
+                const cls = vals&&vals.length>1&&v!=null ? (v===best?'best':v===worst?'worst':'') : '';
                 return <td key={x.i} className={cls}>{row.f(x)}</td>;
               })}
             </tr>
